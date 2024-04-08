@@ -199,6 +199,7 @@ async def generate_pdf_playwright(*, document_title: str, data: list[dict[str, s
 
         return pdf_bytes
 
+
 transactions = [
     {
         "Transaction ID": "123456789",
@@ -211,16 +212,35 @@ transactions = [
         "Total Price": "$200.00",
         "Payment Method": "Credit Card",
         "Status": "Completed",
-        "Shipping Address": "123 Street, City, Country",
-        "Notes": "None",
+        "Shipping Address": "123 Street, City,",
+        "Notes": "lorem ipsum dolor sit amet consectetur adipisicing elit.",
     }
-    for _ in range(50_000)
+    for _ in range(1000)
 ]
+
+
+def wrap_text(c, text, x, y, max_width):
+    lines = []
+    words = text.split()
+    current_line = words[0]
+
+    for word in words[1:]:
+        width = c.stringWidth(current_line + " " + word, "Helvetica", 8)
+        if width <= max_width:
+            current_line += " " + word
+        else:
+            lines.append(current_line)
+            current_line = word
+
+    lines.append(current_line)
+
+    for i, line in enumerate(lines):
+        c.drawString(x, y - i * 12, line)
 
 
 def draw_transaction_card(c, x, y, tx):
     card_width = 500
-    card_height = 100
+    card_height = 120
 
     c.setStrokeColorRGB(0.5, 0.5, 0.5)  # Set color to gray
     c.setLineWidth(0.2)
@@ -251,7 +271,8 @@ def draw_transaction_card(c, x, y, tx):
         value_x = x + 10 + (i % 4) * (card_width // 4)
         value_y = label_y - 10
         c.setFont("Helvetica", 8)
-        c.drawString(value_x, value_y, value)
+        wrap_text(c, value, value_x, value_y, card_width // 4 - 20)
+        # c.drawString(value_x, value_y, value)
 
 
 # Generate the PDF report
@@ -260,7 +281,7 @@ def generate_pdf_report(data):
 
     # Add header with logo and merchant info
     header_height = 100
-    logo_path = "wave_logo.png"  # Update with the actual path to your logo image
+    logo_path = "wave-logo.png"  # Update with the actual path to your logo image
     logo = ImageReader(logo_path)
     c.drawImage(logo, inch, letter[1] - inch - 20, preserveAspectRatio=True, height=80, width=100)
 
@@ -272,14 +293,14 @@ def generate_pdf_report(data):
     c.drawString(inch * 6, letter[1] - 85, "+1234567890")
 
     # Generate transaction cards
-    x, y = inch, letter[1] - inch - header_height - 20
+    x, y = inch, letter[1] - inch - header_height - 50
 
     for tx in data:
         draw_transaction_card(c, x, y, tx)
-        y -= 100  # Adjust vertical position for the next card
+        y -= 120  # Adjust vertical position for the next card
         if y < inch:
             c.showPage()  # Start a new page if the current one is full
-            y = letter[1] - inch - 50
+            y = letter[1] - inch - 80
 
     c.save()
 
