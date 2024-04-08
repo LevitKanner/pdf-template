@@ -1,6 +1,11 @@
 import base64
+import time
 
 from playwright.async_api import async_playwright
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
 
 
 def image_to_base64(image_path) -> str:
@@ -193,3 +198,93 @@ async def generate_pdf_playwright(*, document_title: str, data: list[dict[str, s
         await browser.close()
 
         return pdf_bytes
+
+transactions = [
+    {
+        "Transaction ID": "123456789",
+        "Date": "2024-04-08",
+        "Amount": "$100.00",
+        "Customer Name": "John Doe",
+        "Customer Email": "johndoe@example.com",
+        "Product": "Product A",
+        "Quantity": "2",
+        "Total Price": "$200.00",
+        "Payment Method": "Credit Card",
+        "Status": "Completed",
+        "Shipping Address": "123 Street, City, Country",
+        "Notes": "None",
+    }
+    for _ in range(50_000)
+]
+
+
+def draw_transaction_card(c, x, y, tx):
+    card_width = 500
+    card_height = 100
+
+    c.setStrokeColorRGB(0.5, 0.5, 0.5)  # Set color to gray
+    c.setLineWidth(0.2)
+    c.rect(x, y, card_width, card_height, stroke=1, fill=0)  # Draw a border around the card
+
+    header_fields = [fields for fields in tx.items()][:3]
+    for i, (label, value) in enumerate(header_fields):
+        c.setFont("Helvetica-Bold", 8)
+        x_offset = x + 10 + (i * 200)
+        c.drawString(x_offset, y + card_height - 15, label)
+
+        c.setFont("Helvetica", 8)
+        c.drawString(x_offset, y + card_height - 25, value)
+
+    c.setStrokeColorRGB(0.5, 0.5, 0.5)  # Set color to gray
+    c.setLineWidth(0.2)
+    c.line(x + 10, y + card_height - 30, x + card_width - 10, y + card_height - 30)
+
+    # Draw the body section with labels and values aligned
+    body_fields = [fields for fields in tx.items()][3:]
+
+    for i, (label, value) in enumerate(body_fields):
+        label_x = x + 10 + (i % 4) * (card_width // 4)
+        label_y = y + card_height - 40 - (i // 4) * 20
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(label_x, label_y, f"{label}:")
+
+        value_x = x + 10 + (i % 4) * (card_width // 4)
+        value_y = label_y - 10
+        c.setFont("Helvetica", 8)
+        c.drawString(value_x, value_y, value)
+
+
+# Generate the PDF report
+def generate_pdf_report(data):
+    c = canvas.Canvas("transaction_report.pdf", pagesize=letter)
+
+    # Add header with logo and merchant info
+    header_height = 100
+    logo_path = "wave_logo.png"  # Update with the actual path to your logo image
+    logo = ImageReader(logo_path)
+    c.drawImage(logo, inch, letter[1] - inch - 20, preserveAspectRatio=True, height=80, width=100)
+
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(inch * 6, letter[1] - 40, "Merchant Name")
+    c.setFont("Helvetica", 8)
+    c.drawString(inch * 6, letter[1] - 55, "123 Street, City, Country")
+    c.drawString(inch * 6, letter[1] - 70, "merchant@example.com")
+    c.drawString(inch * 6, letter[1] - 85, "+1234567890")
+
+    # Generate transaction cards
+    x, y = inch, letter[1] - inch - header_height - 20
+
+    for tx in data:
+        draw_transaction_card(c, x, y, tx)
+        y -= 100  # Adjust vertical position for the next card
+        if y < inch:
+            c.showPage()  # Start a new page if the current one is full
+            y = letter[1] - inch - 50
+
+    c.save()
+
+
+start = time.time()
+generate_pdf_report(transactions)
+end = time.time()
+print(f"Took: {end - start} seconds to generate the PDF with reportlab.")
